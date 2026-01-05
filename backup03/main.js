@@ -155,18 +155,10 @@ let texA = createTexture();
 let texB = createTexture();
 let ping = true;
 
-// ---- Probability texture (DBM candidates) ----
-const probTex = createTexture();
-
-
 // Framebuffer
 const fb = gl.createFramebuffer();
 
 const fbo = gl.createFramebuffer();
-
-// ---- CPU readback buffer for DBM selection ----
-const readPixel = new Float32Array(4);
-
 
 const seed = new Float32Array([0.2, 0.0, 0.0, 1.0]);
 
@@ -292,7 +284,7 @@ function step() {
     gl.FRAMEBUFFER,
     gl.COLOR_ATTACHMENT0,
     gl.TEXTURE_2D,
-    probTex,
+    dst,
     0
   );
 
@@ -313,16 +305,114 @@ function step() {
 
   draw(growProgram);
 
-  // ---- DBM global selection: pick ONE growth pixel ----
-  pickOneGrowth(probTex, src);
-
-
-  // Swap buffers AFTER selection
   ping = !ping;
 
-  requestAnimationFrame(step);
 
+
+  requestAnimationFrame(step);
 }
+
+
+/*
+function step() {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.useProgram(displayProgram);
+  gl.bindTexture(gl.TEXTURE_2D, texA);
+  draw(displayProgram);
+
+  /*
+  const src = ping ? texA : texB;
+  const dst = ping ? texB : texA;
+
+  // ---- Field Relaxation (NO FEEDBACK LOOPS) ----
+  let currentField = fieldA;
+
+  for (let i = 0; i < 2; i++) {
+  const fieldSrc = (i % 2 === 0) ? fieldA : fieldB;
+  const fieldDst = (i % 2 === 0) ? fieldB : fieldA;
+
+  currentField = fieldDst;
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER,
+    gl.COLOR_ATTACHMENT0,
+    gl.TEXTURE_2D,
+    fieldDst,
+    0
+  );
+
+  gl.useProgram(fieldProgram);
+  gl.uniform2f(
+    gl.getUniformLocation(fieldProgram, "resolution"),
+    canvas.width,
+    canvas.height
+  );
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fieldSrc);
+  gl.uniform1i(gl.getUniformLocation(fieldProgram, "field"), 0);
+
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, src);
+  gl.uniform1i(gl.getUniformLocation(fieldProgram, "growth"), 1);
+
+  draw(fieldProgram);
+  
+}
+
+
+  // ---- Attach growth destination BEFORE grow pass ----
+gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+gl.framebufferTexture2D(
+  gl.FRAMEBUFFER,
+  gl.COLOR_ATTACHMENT0,
+  gl.TEXTURE_2D,
+  dst,
+  0
+);
+
+
+
+
+  gl.useProgram(growProgram);
+  gl.uniform2f(
+  gl.getUniformLocation(growProgram, "resolution"),
+  canvas.width,
+  canvas.height
+  );
+
+gl.activeTexture(gl.TEXTURE0);
+gl.bindTexture(gl.TEXTURE_2D, src);
+gl.uniform1i(gl.getUniformLocation(growProgram, "growth"), 0);
+
+gl.activeTexture(gl.TEXTURE1);
+gl.bindTexture(gl.TEXTURE_2D, currentField);
+gl.uniform1i(gl.getUniformLocation(growProgram, "field"), 1);
+
+draw(growProgram);
+
+
+
+
+  // ---- Display ----
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  gl.useProgram(displayProgram);
+
+gl.activeTexture(gl.TEXTURE0);
+gl.bindTexture(gl.TEXTURE_2D, dst);
+gl.uniform1i(gl.getUniformLocation(displayProgram, "tex"), 0);
+
+draw(displayProgram);
+
+
+  ping = !ping;
+  requestAnimationFrame(step);
+  
+}
+*/
+
 
 
 
@@ -333,41 +423,6 @@ function draw(program) {
   gl.bindVertexArray(null);
 }
 
-function pickOneGrowth(probTex, writeTex) {
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-  gl.framebufferTexture2D(
-    gl.FRAMEBUFFER,
-    gl.COLOR_ATTACHMENT0,
-    gl.TEXTURE_2D,
-    probTex,
-    0
-  );
-
-  // Try a limited number of random candidates
-  for (let k = 0; k < 2000; k++) {
-    const x = Math.floor(Math.random() * canvas.width);
-    const y = Math.floor(Math.random() * canvas.height);
-
-    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.FLOAT, readPixel);
-
-    if (Math.random() < readPixel[0]) {
-      // Write exactly ONE growth pixel
-      gl.bindTexture(gl.TEXTURE_2D, writeTex);
-      gl.texSubImage2D(
-        gl.TEXTURE_2D,
-        0,
-        x, y,
-        1, 1,
-        gl.RGBA,
-        gl.FLOAT,
-        new Float32Array([1, 0, 0, 1])
-      );
-      break;
-    }
-  }
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-}
 
 
 step();
